@@ -1,21 +1,46 @@
-#pragma once
+#include "models/storage/Battery.hpp"
+#include <algorithm>
 
 namespace Microgrid::Models {
-    class Battery {
-    public:
-        Battery(double capacityWh, double maxChargePower, double maxDischargePower, double initialSoc = 0.5);
 
-        // Attempts to command P (positive=charge, negative=discharge)
-        // Returns ACTUAL power accepted/delivered based on limits and SOC
-        double step(double requestedPower, double dt_seconds);
-        [[nodiscard]] double getSoc() const;
+Battery::Battery(double capacityWh, double maxChargePower, double maxDischargePower, double initialSoc)
+    : capacityJoules(capacityWh * 3600.0), 
+      pMaxCharge(maxChargePower), 
+      pMaxDischarge(maxDischargePower) {
+    currentEnergyJoules = capacityJoules * std::clamp(initialSoc, 0.0, 1.0);
+}
 
-    private:
-        double capacityJoules;
-        double currentEnergyJoules;
-        double pMaxCharge;
-        double pMaxDischarge;
-        double chargeEfficiency = 0.95;
-        double dischargeEfficiency = 0.95;
-    };
+double Battery::step(double requestedPower, double dt_seconds) {
+    double actualPower = 0.0;
+
+    if (requestedPower > 0) { // Charging
+        actualPower = std::min(requestedPower, pMaxCharge);
+        double energyToAdd = actualPower * dt_seconds * chargeEfficiency;
+        if (currentEnergyJoules + energyToAdd > capacityJoules) {
+            energyToAdd = capacityJoules - currentEnergyJoules;
+            actualPower = energyToAdd / (dt_seconds * chargeEfficiency);
+        }
+        currentEnergyJoules += energyToAdd;
+    } 
+    else if (requestedPower < 0) { // Discharging
+        double dischargeReq = -requestedPower;
+        double maxAvailableP = std::min(dischargeReq, pMaxDischarge);
+        
+        double energyToTake = (maxAvailableP * dt_seconds) / dischargeEfficiency;
+        if (currentEnergyJoules - energyToTake < 0.05 * capacityJoules) { // 5% DoD limit
+            energyToTake = currentEnergyJoules - (0.05 * capacityJoules);
+            if(energyToTake < 0) energyToTake = 0;
+            maxAvailableP = (energyToTake * dischargeEfficiency) / dt_seconds;
+        }
+        currentEnergyJoules -= energyToTake;
+        actualPower = -maxAvailableP;
+    }
+
+    return actualPower;
+}
+
+double Battery::getSoc() const {
+    return currentEnergyJoules / capacityJoules;
+}
+
 }
