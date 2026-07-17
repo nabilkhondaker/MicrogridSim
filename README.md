@@ -1,4 +1,9 @@
 # MicrogridSim
+Engineered by Nabil Khondaker.
+
+![C++](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
+![CMake](https://img.shields.io/badge/CMake-3.15%2B-green.svg)
+![GCC](https://img.shields.io/badge/GCC-Compatible-orange.svg)
 
 **A high-fidelity C++ microgrid simulator featuring PV I-V curve modeling, adaptive MPPT control, DC-DC converter dynamics, and energy storage dispatch logic.**
 
